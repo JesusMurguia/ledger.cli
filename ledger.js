@@ -36,6 +36,7 @@ program.parse(process.argv);
 
 function handleRegister(accounts, options) {
 	let logs = getTransactions(options.F);
+	if (options.S === "d") logs = sortByDate(logs);
 	let totals = new Map();
 	let rows = [];
 	for (let i = 0; i < logs.length; i++) {
@@ -89,7 +90,7 @@ function handleRegister(accounts, options) {
 
 //To find the balances of all of your accounts
 function handleBalance(accounts, options) {
-	let logs = getTransactions(options.F);
+	let logs = getTransactions(options);
 
 	//get all the transactions from the logs
 	// let balance = [];
@@ -108,7 +109,7 @@ function printBalance(logs) {
 }
 
 function handlePrint(accounts, options) {
-	console.log(getTransactions(options.F));
+	console.log(getTransactions(options));
 }
 
 //This function reads everyfile line by line, saves each transactions into an object and puts them into an array
@@ -216,4 +217,11 @@ function formatAmount(amount, format, commodity) {
 		return arr.join("");
 	}
 	return commodity + amount;
+}
+
+function sortByDate(logs) {
+	logs.sort(function (a, b) {
+		return new Date(a.date) - new Date(b.date);
+	});
+	return logs;
 }
