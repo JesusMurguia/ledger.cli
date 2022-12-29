@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "commander": "^9.4.1",
-    "n-readlines": "^1.0.1"
+    "n-readlines": "^1.0.1",
+    "text-table": "^0.2.0"
   }
 }
