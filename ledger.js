@@ -38,50 +38,68 @@ function handleRegister(accounts, options) {
 	let logs = getTransactions(options.F);
 	if (options.S === "d") logs = sortByDate(logs);
 	let totals = new Map();
+	let sum = "0";
 	let rows = [];
 	for (let i = 0; i < logs.length; i++) {
 		let { date, title, entries } = logs[i];
 		let { account, amount, commodity } = entries[0];
-		//set the total sum of this account by adding this entries amount
-		let newAmount = updateAmount(amount, totals.get(account) || "0", commodity, "+");
-		totals.set(account, newAmount);
+		//set the total sum of this commodity
+		let newAmount = updateAmount(amount, totals.get(commodity) || "0", commodity, "+");
+		totals.set(commodity, newAmount);
+		sum = updateAmount(amount, sum || "0", commodity, "+");
 		//push the row into the array to be printed later
 		rows.push([`${date} ${title}     `, account, amount, newAmount]);
+		//print the rest of the totals
+		const iterator = totals[Symbol.iterator]();
+		for (const value of iterator) {
+			if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
+				rows.push([" ", " ", "", value[1]]);
+		}
 		for (let j = 1; j < entries.length; j++) {
 			let { account, amount, commodity } = entries[j];
 			if (amount !== "EMPTY") {
-				//set the total sum of this account by adding this entries amount
-				let newAmount = updateAmount(amount, totals.get(account) || "0", commodity, "+");
-				totals.set(account, newAmount);
+				//set the total sum of this commodity
+				let newAmount = updateAmount(amount, totals.get(commodity) || "0", commodity, "+");
+				totals.set(commodity, newAmount);
+				sum = updateAmount(amount, sum, commodity, "+");
 				//push the row into the array to be printed later
 				rows.push(["", account, amount, newAmount]);
+				//print the rest of the totals
+				const iterator = totals[Symbol.iterator]();
+				for (const value of iterator) {
+					if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
+						rows.push([" ", " ", "", value[1]]);
+				}
 			} else {
 				//get the last values
 				let last = entries[j - 1];
-				//set the amount to be the total of the account but negative
+				//set the amount to be the total of the commodity
 				amount = updateAmount(
-					totals.get(last.account) || formatAmount("0", last.amount, last.commodity),
+					totals.get(last.commodity) || formatAmount("0", last.amount, last.commodity),
 					"-1",
 					last.commodity,
 					"*"
 				);
+				sum = updateAmount(sum, "-1", last.commodity, "*");
 				//set the total sum of this account by adding this entries amount
 				let newAmount = updateAmount(
-					amount,
-					totals.get(last.account) || formatAmount("0", last.amount, last.commodity),
+					sum,
+					totals.get(last.commodity) || formatAmount("0", last.amount, last.commodity),
 					last.commodity,
 					"+"
 				);
-				totals.set(last.account, newAmount);
+				totals.set(last.commodity, newAmount);
 				//push the row into the array to be printed later
-				rows.push(["", account, amount, newAmount]);
-			}
-			const iterator = totals[Symbol.iterator]();
-			iterator.next();
-			for (const value of iterator) {
-				if (Number(value[1].match(/[-\d\., ]/g).join("")) !== 0) rows.push([" ", " ", " ", value[1]]);
+				rows.push(["", account, sum, newAmount]);
+				//print the rest of the totals
+				const iterator = totals[Symbol.iterator]();
+				for (const value of iterator) {
+					if (value[0] !== last.commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
+						rows.push([" ", " ", "", value[1]]);
+				}
 			}
 		}
+		sum = 0;
 	}
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l", "r", "r"] });
