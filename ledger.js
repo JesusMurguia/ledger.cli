@@ -103,27 +103,45 @@ function handleRegister(accounts, options) {
 	}
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l", "r", "r"] });
-	console.log(`\n${t}\n`);
+	console.log(t);
 }
 
 //To find the balances of all of your accounts
 function handleBalance(accounts, options) {
-	let logs = getTransactions(options);
+	let logs = getTransactions(options.F);
+	let totals = new Map();
+	let sum = "0";
+	let rows = [];
+	for (let i = 0; i < logs.length; i++) {
+		for (let j = 0; j < logs[i].entries.length; j++) {
+			let { account, amount, commodity } = logs[i].entries[j];
+			if (amount !== "EMPTY") {
+				//set the total sum of this commodity
+				let newAmount = updateAmount(amount, totals.get(account) || "0", commodity, "+");
+				totals.set(account, newAmount);
 
-	//get all the transactions from the logs
-	// let balance = [];
-	// let transactions = logs.map((log) => ({ accounts: log.accounts, amounts: log.amounts }));
-
-	// console.log(transactions);
-}
-
-function printBalance(logs) {
-	logs.forEach((log) => {
-		for (let i = 0; i < log.accounts.length; i++) {
-			console.log(`${log.amounts[i]} ${padding} ${log.accounts[i]}`);
+				sum = updateAmount(amount, sum.toString(), commodity, "+");
+			} else {
+				sum = updateAmount(sum.toString(), "-1", logs[i].entries[j - 1].commodity, "*");
+				totals.set(account, sum);
+				sum = "0";
+			}
 		}
-	});
-	console.log("---------------");
+		sum = "0";
+	}
+	const iterator = totals[Symbol.iterator]();
+	for (const value of iterator) {
+		if (checkRegex(value[0])) rows.push([value[1], value[0]]);
+		else totals.delete(value[0]);
+	}
+	rows.push(["-----------", ""]);
+	const iterator2 = sumCommodities(totals)[Symbol.iterator]();
+	for (const value of iterator2) {
+		rows.push([value[1], ""]);
+	}
+	var table = require("text-table");
+	var t = table(rows, { align: ["r", "l"] });
+	console.log(t);
 }
 
 function handlePrint(accounts, options) {
@@ -242,4 +260,27 @@ function sortByDate(logs) {
 		return new Date(a.date) - new Date(b.date);
 	});
 	return logs;
+}
+
+function checkRegex(str) {
+	let arr = program.args;
+	if (arr.length < 2) return true;
+	let regex = new RegExp(arr.slice(1).join("|"), "g");
+	let matches = str.match(regex) || [];
+	return matches.length > 0;
+}
+
+function sumCommodities(totals) {
+	let commodities = new Map();
+	const iterator = totals[Symbol.iterator]();
+	for (const value of iterator) {
+		let comodity = value[1].replace(/[-\d\., ]/g, "").trim();
+		let newAmount = value[1];
+		if (commodities.get(comodity)) {
+			console.log(commodities.get(comodity));
+			newAmount = updateAmount(value[1], commodities.get(comodity), comodity);
+		}
+		commodities.set(comodity, newAmount);
+	}
+	return commodities;
 }
