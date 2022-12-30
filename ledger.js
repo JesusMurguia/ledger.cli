@@ -291,8 +291,7 @@ function sumCommodities(totals) {
 		let comodity = value[1].replace(/[-\d\., ]/g, "").trim();
 		let newAmount = value[1];
 		if (commodities.get(comodity)) {
-			console.log(commodities.get(comodity));
-			newAmount = updateAmount(value[1], commodities.get(comodity), comodity);
+			newAmount = updateAmount(value[1], commodities.get(comodity), comodity, "+");
 		}
 		commodities.set(comodity, newAmount);
 	}
