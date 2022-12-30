@@ -145,7 +145,21 @@ function handleBalance(accounts, options) {
 }
 
 function handlePrint(accounts, options) {
-	console.log(getTransactions(options));
+	let logs = getTransactions(options.F);
+	if (options.S === "d") logs = sortByDate(logs);
+	let rows = [];
+	for (let i = 0; i < logs.length; i++) {
+		let { date, title, entries } = logs[i];
+		rows.push([`${date} ${title}`]);
+		for (let j = 0; j < entries.length; j++) {
+			let { account, amount } = entries[j];
+			rows.push([`	${account}	`, `${amount === "EMPTY" ? "" : amount}`]);
+		}
+		rows.push([""]);
+	}
+	var table = require("text-table");
+	var t = table(rows, { align: ["l", "l"] });
+	console.log(t);
 }
 
 //This function reads everyfile line by line, saves each transactions into an object and puts them into an array
