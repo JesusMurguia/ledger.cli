@@ -2,6 +2,7 @@ const { Command } = require("commander");
 const program = new Command();
 
 let transactions = [];
+let prices = new Map();
 //SOFTWARE DESCRIPTION
 program.name("ledger-cli").description("CLI ledger to manage your finances by Jesus Murguia").version("0.0.1");
 
@@ -130,7 +131,7 @@ function handleBalance(accounts, options) {
 		}
 		sum = "0";
 	}
-	if (options.S === "amount") totals = new Map([...map.entries()].sort());
+	if (options.S === "amount") totals = sortByAmount(totals);
 	const iterator = totals[Symbol.iterator]();
 	for (const value of iterator) {
 		if (checkRegex(value[0])) rows.push([value[1], value[0]]);
@@ -166,6 +167,7 @@ function handlePrint(accounts, options) {
 
 //This function reads everyfile line by line, saves each transactions into an object and puts them into an array
 function getTransactions(files) {
+	getPrices();
 	const lineByLine = require("n-readlines");
 	//loop through every file declared in the command line options
 	for (let i = 0; i < files.length; i++) {
@@ -235,6 +237,21 @@ function getTransactions(files) {
 	return transactions;
 }
 
+function getPrices() {
+	const lineByLine = require("n-readlines");
+	const liner = new lineByLine(program.opts().priceDb);
+	let line;
+	while ((line = liner.next())) {
+		let arr = line.toString().trim().split(" ");
+		if (line.toString().trim().startsWith("P")) {
+			prices.set(arr[arr.length - 2], arr[arr.length - 1]);
+		}
+		if (line.toString().trim().startsWith("N")) {
+			prices.set(arr[arr.length - 1], "1");
+		}
+	}
+}
+
 function hasDate(line) {
 	const dateType = /(\d{4})([\/-])(\d{1,2})\2(\d{1,2})/;
 	return dateType.test(line);
@@ -249,9 +266,13 @@ function transactionFactory() {
 	return transaction;
 }
 
+function getNumber(str) {
+	return Number(str.match(/[-\d\., ]/g).join(""));
+}
+
 function updateAmount(amount1, amount2, commodity, operation) {
-	let num1 = Number(amount1.match(/[-\d\., ]/g).join(""));
-	let num2 = Number(amount2.match(/[-\d\., ]/g).join(""));
+	let num1 = getNumber(amount1);
+	let num2 = getNumber(amount2);
 
 	let res;
 	if (operation === "+") res = Math.round((num1 + num2 + Number.EPSILON) * 100) / 100;
@@ -318,4 +339,17 @@ function filterLogs(logs) {
 	return transactions;
 }
 
-function sortByAmount() {}
+function convertCommodity(amount) {
+	let commodity = amount.replace(/[-\d\., ]/g, "").trim();
+	if (prices.get(commodity)) return updateAmount(prices.get(commodity), amount, commodity, "*");
+	return;
+}
+
+function sortByAmount(totals) {
+	let sorted = new Map(
+		[...totals.entries()].sort((a, b) =>
+			getNumber(convertCommodity(b[1])) >= getNumber(convertCommodity(a[1])) ? 1 : -1
+		)
+	);
+	return sorted;
+}
