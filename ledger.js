@@ -36,6 +36,7 @@ program.parse(process.argv);
 
 function handleRegister(accounts, options) {
 	let logs = getTransactions(options.F);
+	logs = filterLogs(logs);
 	if (options.S === "d") logs = sortByDate(logs);
 	let totals = new Map();
 	let sum = "0";
@@ -129,6 +130,7 @@ function handleBalance(accounts, options) {
 		}
 		sum = "0";
 	}
+	if (options.S === "amount") totals = new Map([...map.entries()].sort());
 	const iterator = totals[Symbol.iterator]();
 	for (const value of iterator) {
 		if (checkRegex(value[0])) rows.push([value[1], value[0]]);
@@ -297,3 +299,23 @@ function sumCommodities(totals) {
 	}
 	return commodities;
 }
+
+function filterLogs(logs) {
+	let transactions = logs;
+	let arr = program.args;
+	if (arr.length < 2) return transactions;
+	let regex = new RegExp(arr.slice(1).join("|"), "g");
+	for (let i = 0; i < transactions.length; i++) {
+		for (let j = 0; j < transactions[i].entries.length; j++) {
+			let matches = transactions[i].entries[j].account.match(regex) || [];
+			if (matches.length === 0) {
+				transactions[i].entries.splice(j, 1);
+				j--;
+			}
+		}
+		if (transactions[i].entries.length === 0) transactions.splice(i--, 1);
+	}
+	return transactions;
+}
+
+function sortByAmount() {}
