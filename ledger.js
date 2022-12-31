@@ -149,6 +149,7 @@ function handleBalance(accounts, options) {
 
 function handlePrint(accounts, options) {
 	let logs = getTransactions(options.F);
+	logs = filterLogs(logs);
 	if (options.S === "d") logs = sortByDate(logs);
 	let rows = [];
 	for (let i = 0; i < logs.length; i++) {
