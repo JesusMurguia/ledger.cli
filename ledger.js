@@ -4,7 +4,7 @@ const program = new Command();
 let transactions = [];
 let prices = new Map();
 //SOFTWARE DESCRIPTION
-program.name("ledger-cli").description("CLI ledger to manage your finances by Jesus Murguia").version("0.0.1");
+program.name("ledger-cli").description("CLI ledger to manage your finances by Jesus Murguia");
 
 //REGISTER COMMAND
 program
@@ -31,7 +31,8 @@ program
 program
 	.option("--price-db <string>", "The file for the prices database", "prices_db")
 	.option("--file, -f <string...>", "The file(s) for the ledger accounts", ["index.ledger"])
-	.option("--sort, -S <string>", "Sort a report by date");
+	.option("--sort, -S <string>", "Sort a report by date")
+	.option("--market, -V", "Show the market value");
 
 program.parse(process.argv);
 
@@ -45,39 +46,43 @@ function handleRegister(accounts, options) {
 	for (let i = 0; i < logs.length; i++) {
 		let { date, title, entries } = logs[i];
 		let { account, amount, commodity } = entries[0];
+		if (program.opts().V) commodity = prices.get("DEFAULT");
 		//set the total sum of this commodity
-		let newAmount = updateAmount(amount, totals.get(commodity) || "0", commodity, "+");
+		let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
 		totals.set(commodity, newAmount);
-		sum = updateAmount(amount, sum || "0", commodity, "+");
+		sum = updateAmount(getValue(amount), sum || "0", commodity, "+");
 		//push the row into the array to be printed later
-		rows.push([`${date} ${title}     `, account, amount, newAmount]);
+		rows.push([`${date} ${title}     `, account, getValue(amount), newAmount]);
 		//print the rest of the totals
 		const iterator = totals[Symbol.iterator]();
 		for (const value of iterator) {
 			if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
-				rows.push([" ", " ", "", value[1]]);
+				rows.push([" ", " ", "", getValue(value[1])]);
 		}
 		for (let j = 1; j < entries.length; j++) {
 			let { account, amount, commodity } = entries[j];
+			if (program.opts().V) commodity = prices.get("DEFAULT");
 			if (amount !== "EMPTY") {
 				//set the total sum of this commodity
-				let newAmount = updateAmount(amount, totals.get(commodity) || "0", commodity, "+");
+				let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
 				totals.set(commodity, newAmount);
-				sum = updateAmount(amount, sum, commodity, "+");
+				sum = updateAmount(getValue(amount), sum, commodity, "+");
 				//push the row into the array to be printed later
-				rows.push(["", account, amount, newAmount]);
+				rows.push(["", account, getValue(amount), newAmount]);
 				//print the rest of the totals
 				const iterator = totals[Symbol.iterator]();
 				for (const value of iterator) {
 					if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
-						rows.push([" ", " ", "", value[1]]);
+						rows.push([" ", " ", "", getValue(value[1])]);
 				}
 			} else {
 				//get the last values
 				let last = entries[j - 1];
+				if (program.opts().V) last.commodity = prices.get("DEFAULT");
+
 				//set the amount to be the total of the commodity
 				amount = updateAmount(
-					totals.get(last.commodity) || formatAmount("0", last.amount, last.commodity),
+					getValue(totals.get(last.commodity)) || totals.get(formatAmount("0", last.amount, last.commodity)),
 					"-1",
 					last.commodity,
 					"*"
@@ -92,12 +97,12 @@ function handleRegister(accounts, options) {
 				);
 				totals.set(last.commodity, newAmount);
 				//push the row into the array to be printed later
-				rows.push(["", account, sum, newAmount]);
+				rows.push(["", account, getValue(sum), getValue(newAmount)]);
 				//print the rest of the totals
 				const iterator = totals[Symbol.iterator]();
 				for (const value of iterator) {
 					if (value[0] !== last.commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
-						rows.push([" ", " ", "", value[1]]);
+						rows.push([" ", " ", "", getValue(value[1])]);
 				}
 			}
 		}
@@ -134,13 +139,13 @@ function handleBalance(accounts, options) {
 	if (options.S === "amount") totals = sortByAmount(totals);
 	const iterator = totals[Symbol.iterator]();
 	for (const value of iterator) {
-		if (checkRegex(value[0])) rows.push([value[1], value[0]]);
+		if (checkRegex(value[0])) rows.push([getValue(value[1]), value[0]]);
 		else totals.delete(value[0]);
 	}
 	rows.push(["-----------", ""]);
 	const iterator2 = sumCommodities(totals)[Symbol.iterator]();
 	for (const value of iterator2) {
-		rows.push([value[1], ""]);
+		rows.push([getValue(value[1]), ""]);
 	}
 	var table = require("text-table");
 	var t = table(rows, { align: ["r", "l"] });
@@ -157,7 +162,7 @@ function handlePrint(accounts, options) {
 		rows.push([`${date} ${title}`]);
 		for (let j = 0; j < entries.length; j++) {
 			let { account, amount } = entries[j];
-			rows.push([`	${account}	`, `${amount === "EMPTY" ? "" : amount}`]);
+			rows.push([`	${account}	`, `${amount === "EMPTY" ? "" : getValue(amount)}`]);
 		}
 		rows.push([""]);
 	}
@@ -249,6 +254,7 @@ function getPrices() {
 		}
 		if (line.toString().trim().startsWith("N")) {
 			prices.set(arr[arr.length - 1], "1");
+			prices.set("DEFAULT", arr[arr.length - 1]);
 		}
 	}
 }
@@ -312,12 +318,17 @@ function sumCommodities(totals) {
 	let commodities = new Map();
 	const iterator = totals[Symbol.iterator]();
 	for (const value of iterator) {
-		let comodity = value[1].replace(/[-\d\., ]/g, "").trim();
+		let comodity = program.opts().V ? prices.get("DEFAULT") : value[1].replace(/[-\d\., ]/g, "").trim();
 		let newAmount = value[1];
 		if (commodities.get(comodity)) {
-			newAmount = updateAmount(value[1], commodities.get(comodity), comodity, "+");
+			newAmount = updateAmount(
+				getValue(value[1]),
+				commodities.get(program.opts().V ? prices.get("DEFAULT") : comodity),
+				program.opts().V ? prices.get("DEFAULT") : comodity,
+				"+"
+			);
 		}
-		commodities.set(comodity, newAmount);
+		commodities.set(program.opts().V ? prices.get("DEFAULT") : comodity, getValue(newAmount));
 	}
 	return commodities;
 }
@@ -342,8 +353,13 @@ function filterLogs(logs) {
 
 function convertCommodity(amount) {
 	let commodity = amount.replace(/[-\d\., ]/g, "").trim();
-	if (prices.get(commodity)) return updateAmount(prices.get(commodity), amount, commodity, "*");
+	if (prices.get(commodity)) return updateAmount(prices.get(commodity), amount, prices.get("DEFAULT"), "*");
 	return;
+}
+
+function getValue(str) {
+	if (!program.opts().V) return str;
+	return convertCommodity(str);
 }
 
 function sortByAmount(totals) {
