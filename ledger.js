@@ -1,4 +1,4 @@
-const { Command } = require("commander");
+const { Command, Option } = require("commander");
 const program = new Command();
 
 let transactions = [];
@@ -29,10 +29,10 @@ program
 
 //OPTIONS
 program
-	.option("--price-db <string>", "The file for the prices database", "prices_db")
-	.option("--file, -f <string...>", "The file(s) for the ledger accounts", ["index.ledger"])
-	.option("--sort, -S <string>", "Sort a report by date")
-	.option("--market, -V", "Show the market value");
+	.addOption(new Option("--price-db <string>", "The file for the prices database").default("prices_db"))
+	.addOption(new Option("--file, -f <string>", "The file(s) for the ledger accounts").default("index.ledger"))
+	.addOption(new Option("--sort, -S <string>", "Sort a report by date").choices(["d", "amount"]))
+	.addOption(new Option("--market, -V", "Show the market value"));
 
 program.parse(process.argv);
 
@@ -172,73 +172,69 @@ function handlePrint(accounts, options) {
 }
 
 //This function reads everyfile line by line, saves each transactions into an object and puts them into an array
-function getTransactions(files) {
+function getTransactions(file) {
 	getPrices();
 	const lineByLine = require("n-readlines");
-	//loop through every file declared in the command line options
-	for (let i = 0; i < files.length; i++) {
-		let transaction = transactionFactory();
-		const liner = new lineByLine(files[i]);
+	let transaction = transactionFactory();
+	const liner = new lineByLine(file);
 
-		let line;
+	let line;
 
-		while ((line = liner.next())) {
-			//if this line says it includes another file it will loop through that file and come back to the next line
-			let currentLine = line.toString("ascii");
+	while ((line = liner.next())) {
+		//if this line says it includes another file it will loop through that file and come back to the next line
+		let currentLine = line.toString("ascii");
+		if (currentLine.includes("!include")) getTransactions(currentLine.split(" ")[1].replaceAll("\r", ""));
+		else {
+			//trim the line to avoid empty spaces
+			//this will also help identify new lines
+			//to know when to end the current transaction
+			currentLine = currentLine.trim();
+			//if the next line is a comment ignore it
+			if (currentLine[0] === ";") continue;
 
-			if (currentLine.includes("!include")) getTransactions([currentLine.split(" ")[1].replaceAll("\r", "")]);
-			else {
-				//trim the line to avoid empty spaces
-				//this will also help identify new lines
-				//to know when to end the current transaction
-				currentLine = currentLine.trim();
-				//if the next line is a comment ignore it
-				if (currentLine[0] === ";") continue;
+			//if theres an empty line we add the transaction to the list
+			//and reset the transaction object
+			if (currentLine.length === 0) {
+				transactions.push(transaction);
+				transaction = transactionFactory();
+				continue;
+			}
 
-				//if theres an empty line we add the transaction to the list
-				//and reset the transaction object
-				if (currentLine.length === 0) {
+			//if the next line has a date in it
+			//we save both the date and the title
+			if (hasDate(currentLine)) {
+				if (transaction.date) {
 					transactions.push(transaction);
 					transaction = transactionFactory();
-					continue;
 				}
-
-				//if the next line has a date in it
-				//we save both the date and the title
-				if (hasDate(currentLine)) {
-					if (transaction.date) {
-						transactions.push(transaction);
-						transaction = transactionFactory();
-					}
-					const [date, title] = currentLine.split(/ (.*)/s);
-					transaction.date = date;
-					transaction.title = title;
+				const [date, title] = currentLine.split(/ (.*)/s);
+				transaction.date = date;
+				transaction.title = title;
+			} else {
+				//if it doesnt have a date, it has the account - amount pair
+				//split the line by tabs and remove the empty ones
+				let [account, amount] = currentLine
+					.trim()
+					.split("\t")
+					.filter((n) => n);
+				let commodity = "";
+				if (amount) {
+					commodity = amount.replace(/[-\d\., ]/g, "").trim();
+					transaction.entries.push({ amount, commodity, account: account.trim() });
 				} else {
-					//if it doesnt have a date, it has the account - amount pair
-					//split the line by tabs and remove the empty ones
-					let [account, amount] = currentLine
-						.trim()
-						.split("\t")
-						.filter((n) => n);
-					let commodity = "";
-					if (amount) {
-						commodity = amount.replace(/[-\d\., ]/g, "").trim();
-						transaction.entries.push({ amount, commodity, account: account.trim() });
-					} else {
-						//if the amount is empty i gotta calculate the number myself
-						transaction.entries.push({
-							amount: "EMPTY",
-							commodity: "EMPTY",
-							account: account.trim(),
-						});
-					}
+					//if the amount is empty i gotta calculate the number myself
+					transaction.entries.push({
+						amount: "EMPTY",
+						commodity: "EMPTY",
+						account: account.trim(),
+					});
 				}
 			}
 		}
-		if (transaction.date) {
-			transactions.push(transaction);
-			transaction = transactionFactory();
-		}
+	}
+	if (transaction.date) {
+		transactions.push(transaction);
+		transaction = transactionFactory();
 	}
 	return transactions;
 }
