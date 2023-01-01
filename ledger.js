@@ -31,7 +31,9 @@ program
 program
 	.addOption(new Option("--price-db <string>", "The file for the prices database").default("prices_db"))
 	.addOption(new Option("--file, -f <string>", "The file(s) for the ledger accounts").default("index.ledger"))
-	.addOption(new Option("--sort, -S <string>", "Sort a report by date").choices(["d", "amount"]))
+	.addOption(new Option("--sort, -S <string>", "Sort a report by date").choices(["d", "date", "amount", "a"]))
+	.addOption(new Option("--begin, -b <string>", "Limit the report by the starting date"))
+	.addOption(new Option("--end, -e <string>", "Limit the report by the ending date"))
 	.addOption(new Option("--market, -V", "Show the market value"));
 
 program.parse(process.argv);
@@ -39,7 +41,8 @@ program.parse(process.argv);
 function handleRegister(accounts, options) {
 	let logs = getTransactions(options.F);
 	logs = filterLogs(logs);
-	if (options.S === "d") logs = sortByDate(logs);
+	if (options.B || options.E) logs = limitLogs(options.B, options.E, logs);
+	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
 	let totals = new Map();
 	let sum = "0";
 	let rows = [];
@@ -155,6 +158,7 @@ function handleBalance(accounts, options) {
 function handlePrint(accounts, options) {
 	let logs = getTransactions(options.F);
 	logs = filterLogs(logs);
+	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
 	if (options.S === "d") logs = sortByDate(logs);
 	let rows = [];
 	for (let i = 0; i < logs.length; i++) {
@@ -365,4 +369,16 @@ function sortByAmount(totals) {
 		)
 	);
 	return sorted;
+}
+
+function limitLogs(begin, end, logs) {
+	logs = logs.filter((l) => {
+		if (begin) {
+			return new Date(l.date).getTime() > new Date(begin).getTime();
+		} else if (end) {
+			return new Date(l.date).getTime() < new Date(end).getTime();
+		}
+		return true;
+	});
+	return logs;
 }
