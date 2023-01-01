@@ -224,7 +224,7 @@ function getTransactions(file) {
 				//split the line by tabs and remove the empty ones
 				let [account, amount] = currentLine
 					.trim()
-					.split("\t")
+					.split(/[\t]|[ ]{2,}/)
 					.filter((n) => n);
 				let commodity = "";
 				if (amount) {
