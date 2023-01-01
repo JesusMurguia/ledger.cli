@@ -40,7 +40,6 @@ program.parse(process.argv);
 
 function handleRegister(accounts, options) {
 	let logs = getTransactions(options.F);
-	logs = filterLogs(logs);
 	if (options.B || options.E) logs = limitLogs(options.B, options.E, logs);
 	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
 	let totals = new Map();
@@ -49,18 +48,24 @@ function handleRegister(accounts, options) {
 	for (let i = 0; i < logs.length; i++) {
 		let { date, title, entries } = logs[i];
 		let { account, amount, commodity } = entries[0];
+		let first = true;
 		if (program.opts().V) commodity = prices.get("DEFAULT");
 		//set the total sum of this commodity
 		let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
-		totals.set(commodity, newAmount);
+		if (checkRegex(account)) totals.set(commodity, newAmount);
 		sum = updateAmount(getValue(amount), sum || "0", commodity, "+");
 		//push the row into the array to be printed later
-		rows.push([`${date} ${title}     `, account, getValue(amount), newAmount]);
+		if (checkRegex(account)) {
+			rows.push([first ? `${date} ${title}     ` : "", account, getValue(amount), newAmount]);
+			first = false;
+		}
 		//print the rest of the totals
-		const iterator = totals[Symbol.iterator]();
-		for (const value of iterator) {
-			if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
-				rows.push([" ", " ", "", getValue(value[1])]);
+		if (checkRegex(account)) {
+			const iterator = totals[Symbol.iterator]();
+			for (const value of iterator) {
+				if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
+					rows.push([" ", " ", "", getValue(value[1])]);
+			}
 		}
 		for (let j = 1; j < entries.length; j++) {
 			let { account, amount, commodity } = entries[j];
@@ -68,29 +73,27 @@ function handleRegister(accounts, options) {
 			if (amount !== "EMPTY") {
 				//set the total sum of this commodity
 				let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
-				totals.set(commodity, newAmount);
-				sum = updateAmount(getValue(amount), sum, commodity, "+");
+				if (checkRegex(account)) totals.set(commodity, newAmount);
+				sum = updateAmount(getValue(amount), sum || "0", commodity, "+");
 				//push the row into the array to be printed later
-				rows.push(["", account, getValue(amount), newAmount]);
+				if (checkRegex(account)) {
+					rows.push([first ? `${date} ${title}     ` : "", account, getValue(amount), newAmount]);
+					first = false;
+				}
 				//print the rest of the totals
-				const iterator = totals[Symbol.iterator]();
-				for (const value of iterator) {
-					if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
-						rows.push([" ", " ", "", getValue(value[1])]);
+				if (checkRegex(account)) {
+					const iterator = totals[Symbol.iterator]();
+					for (const value of iterator) {
+						if (value[0] !== commodity && Number(value[1].match(/[-\d\., ]/g).join("")) !== 0)
+							rows.push([" ", " ", "", getValue(value[1])]);
+					}
 				}
 			} else {
+				if (!checkRegex(account)) continue;
 				//get the last values
 				let last = entries[j - 1];
 				if (program.opts().V) last.commodity = prices.get("DEFAULT");
-
-				//set the amount to be the total of the commodity
-				amount = updateAmount(
-					getValue(totals.get(last.commodity)) || totals.get(formatAmount("0", last.amount, last.commodity)),
-					"-1",
-					last.commodity,
-					"*"
-				);
-				sum = updateAmount(sum, "-1", last.commodity, "*");
+				sum = updateAmount(sum || "0", "-1", last.commodity, "*");
 				//set the total sum of this account by adding this entries amount
 				let newAmount = updateAmount(
 					sum,
@@ -100,7 +103,8 @@ function handleRegister(accounts, options) {
 				);
 				totals.set(last.commodity, newAmount);
 				//push the row into the array to be printed later
-				rows.push(["", account, getValue(sum), getValue(newAmount)]);
+				rows.push([first ? `${date} ${title}     ` : "", account, getValue(sum), getValue(newAmount)]);
+				first = false;
 				//print the rest of the totals
 				const iterator = totals[Symbol.iterator]();
 				for (const value of iterator) {
@@ -110,6 +114,7 @@ function handleRegister(accounts, options) {
 			}
 		}
 		sum = 0;
+		first = true;
 	}
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l", "r", "r"] });
