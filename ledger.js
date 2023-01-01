@@ -199,7 +199,7 @@ function getTransactions(file) {
 			//to know when to end the current transaction
 			currentLine = currentLine.trim();
 			//if the next line is a comment ignore it
-			if (currentLine[0] === ";") continue;
+			if (/;|#|%|"|[|]|[*]/.test(currentLine[0])) continue;
 
 			//if theres an empty line we add the transaction to the list
 			//and reset the transaction object
