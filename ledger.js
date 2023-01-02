@@ -34,7 +34,7 @@ program
 	.addOption(new Option("--sort, -S <string>", "Sort a report by date").choices(["d", "date", "amount", "a"]))
 	.addOption(new Option("--begin, -b <string>", "Limit the report by the starting date"))
 	.addOption(new Option("--end, -e <string>", "Limit the report by the ending date"))
-	.addOption(new Option("--market, -V", "Show the market value"));
+	.addOption(new Option("--subtotal", "Report register as a single subtotal"));
 
 program.parse(process.argv);
 
@@ -115,6 +115,13 @@ function handleRegister(accounts, options) {
 		}
 		sum = 0;
 		first = true;
+	}
+	if (program.opts().subtotal) {
+		rows = [];
+		const iterator = totals[Symbol.iterator]();
+		for (const value of iterator) {
+			rows.push([" ", " ", value[0], getValue(value[1])]);
+		}
 	}
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l", "r", "r"] });
