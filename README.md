@@ -1,4 +1,5 @@
 
+
 ## Simple implementation of ledger-cli
 
 ## Getting Started
@@ -25,6 +26,15 @@
 
 <!-- USAGE EXAMPLES -->
 ## Usage
+Flags
+
+ - `--file` `(-f)`: Read FILE as a ledger file. (By default it uses `index.ledger`)
+ - `--price-db`: Use FILE for retrieving stored commodity prices. (By default it uses `prices_db`)
+ - `--sort` (`-S`): Sort a report by date or amount
+ - `--begin` (`-b`): Limit the report by the starting date (Example: `--begin 2022/10/24`)
+ - `--end` (`-e`): Limit the report by the ending date (Example: `--end 2022/12/06`)
+ - `--subtotal`: Report register as a single subtotal
+ - `--market` (`-V`): Report values as their market value
 
 The commands available are
 
