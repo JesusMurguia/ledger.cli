@@ -193,6 +193,8 @@ function handlePrint(accounts, options) {
 	let logs = getTransactions(options.F);
 	logs = filterLogs(logs); //filters the transactions by the regex
 	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
+	//if there are options for --begin and --end limit the logs array
+	if (options.B || options.E) logs = limitLogs(options.B, options.E, logs);
 	let rows = [];
 	//loop through each transaction
 	for (let i = 0; i < logs.length; i++) {
@@ -426,12 +428,14 @@ function sortByAmount(totals) {
 //removes every transaction that doesnt fit in with the date limitations specified in the command line options
 function limitLogs(begin, end, logs) {
 	logs = logs.filter((l) => {
+		let valid = true;
 		if (begin) {
-			return new Date(l.date).getTime() > new Date(begin).getTime();
-		} else if (end) {
-			return new Date(l.date).getTime() < new Date(end).getTime();
+			valid = new Date(l.date).getTime() > new Date(begin).getTime();
 		}
-		return true;
+		if (end) {
+			valid = new Date(l.date).getTime() < new Date(end).getTime();
+		}
+		return valid;
 	});
 	return logs;
 }
