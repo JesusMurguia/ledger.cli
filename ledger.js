@@ -37,7 +37,8 @@ program
 	.addOption(new Option("--sort, -S <string>", "Sort a report by date").choices(["d", "date", "amount", "a"]))
 	.addOption(new Option("--begin, -b <string>", "Limit the report by the starting date"))
 	.addOption(new Option("--end, -e <string>", "Limit the report by the ending date"))
-	.addOption(new Option("--subtotal", "Report register as a single subtotal"));
+	.addOption(new Option("--subtotal", "Report register as a single subtotal"))
+	.addOption(new Option("--market, -V", "Report values as their market value9"));
 
 program.parse(process.argv);
 
