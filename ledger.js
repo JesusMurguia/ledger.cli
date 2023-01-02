@@ -1,8 +1,11 @@
 const { Command, Option } = require("commander");
 const program = new Command();
 
+//declare the array where all the transactions are going to be stored
 let transactions = [];
+//declare the map where all the commodities are going to be stored
 let prices = new Map();
+
 //SOFTWARE DESCRIPTION
 program.name("ledger-cli").description("CLI ledger to manage your finances by Jesus Murguia");
 
@@ -38,17 +41,23 @@ program
 
 program.parse(process.argv);
 
+//this function show every transaction and a running total
 function handleRegister(accounts, options) {
+	//get the transactions from the --file
 	let logs = getTransactions(options.F);
+	//if there are options for --begin and --end limit the logs array
 	if (options.B || options.E) logs = limitLogs(options.B, options.E, logs);
+	//if if needs to sort the array by date
 	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
-	let totals = new Map();
-	let sum = "0";
-	let rows = [];
+	let totals = new Map(); //this will store the total of each currency
+	let sum = "0"; //this will be the running total of each transaction
+	let rows = []; //this represents the rows of the table to be printed
+	//loop thorough each transaction
 	for (let i = 0; i < logs.length; i++) {
 		let { date, title, entries } = logs[i];
 		let { account, amount, commodity } = entries[0];
-		let first = true;
+		let first = true; //we need to know if this is the first entry of the transaction to print the title or not
+		//If the user asks for the --market value reset the commodity to the default one in the prices_db file
 		if (program.opts().V) commodity = prices.get("DEFAULT");
 		//set the total sum of this commodity
 		let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
@@ -67,9 +76,11 @@ function handleRegister(accounts, options) {
 					rows.push([" ", " ", "", getValue(value[1])]);
 			}
 		}
+		//loop through each entry on the transaction
 		for (let j = 1; j < entries.length; j++) {
 			let { account, amount, commodity } = entries[j];
 			if (program.opts().V) commodity = prices.get("DEFAULT");
+			//if the transaction amount is empty we need to calculate the amount, otherwise just add it to the totals
 			if (amount !== "EMPTY") {
 				//set the total sum of this commodity
 				let newAmount = updateAmount(getValue(amount), totals.get(commodity) || "0", commodity, "+");
@@ -93,8 +104,8 @@ function handleRegister(accounts, options) {
 				//get the last values
 				let last = entries[j - 1];
 				if (program.opts().V) last.commodity = prices.get("DEFAULT");
-				sum = updateAmount(sum || "0", "-1", last.commodity, "*");
 				//set the total sum of this account by adding this entries amount
+				sum = updateAmount(sum || "0", "-1", last.commodity, "*");
 				let newAmount = updateAmount(
 					sum,
 					totals.get(last.commodity) || formatAmount("0", last.amount, last.commodity),
@@ -116,6 +127,7 @@ function handleRegister(accounts, options) {
 		sum = 0;
 		first = true;
 	}
+	//if the user asks for a --subtotal only print the totals instead of the transactions
 	if (program.opts().subtotal) {
 		rows = [];
 		const iterator = totals[Symbol.iterator]();
@@ -123,6 +135,7 @@ function handleRegister(accounts, options) {
 			rows.push([" ", " ", value[0], getValue(value[1])]);
 		}
 	}
+	//convert the rows array into a readable table
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l", "r", "r"] });
 	console.log(t);
@@ -131,12 +144,15 @@ function handleRegister(accounts, options) {
 //To find the balances of all of your accounts
 function handleBalance(accounts, options) {
 	let logs = getTransactions(options.F);
-	let totals = new Map();
+	let totals = new Map(); //save the totals of each account
 	let sum = "0";
 	let rows = [];
+	//loop through each transaction
 	for (let i = 0; i < logs.length; i++) {
+		//loop through each entry
 		for (let j = 0; j < logs[i].entries.length; j++) {
 			let { account, amount, commodity } = logs[i].entries[j];
+			//if the transaction amount is empty we need to calculate the amount, otherwise just add it to the totals
 			if (amount !== "EMPTY") {
 				//set the total sum of this commodity
 				let newAmount = updateAmount(amount, totals.get(account) || "0", commodity, "+");
@@ -151,51 +167,61 @@ function handleBalance(accounts, options) {
 		}
 		sum = "0";
 	}
+	//if the user asks for --sort by amount
 	if (options.S === "amount") totals = sortByAmount(totals);
+	//check each total to send to the rows array the ones that fit the regex
 	const iterator = totals[Symbol.iterator]();
 	for (const value of iterator) {
 		if (checkRegex(value[0])) rows.push([getValue(value[1]), value[0]]);
 		else totals.delete(value[0]);
 	}
 	rows.push(["-----------", ""]);
+	//add all the totals with the same commodities together
 	const iterator2 = sumCommodities(totals)[Symbol.iterator]();
 	for (const value of iterator2) {
 		rows.push([getValue(value[1]), ""]);
 	}
+	//convert the rows array into a readable table
 	var table = require("text-table");
 	var t = table(rows, { align: ["r", "l"] });
 	console.log(t);
 }
 
+//this function prints the ledger files
 function handlePrint(accounts, options) {
 	let logs = getTransactions(options.F);
-	logs = filterLogs(logs);
+	logs = filterLogs(logs); //filters the transactions by the regex
 	if (options.S === "d" || options.S === "date") logs = sortByDate(logs);
-	if (options.S === "d") logs = sortByDate(logs);
 	let rows = [];
+	//loop through each transaction
 	for (let i = 0; i < logs.length; i++) {
 		let { date, title, entries } = logs[i];
+		//print the date and title
 		rows.push([`${date} ${title}`]);
+		//loop through each entry
 		for (let j = 0; j < entries.length; j++) {
 			let { account, amount } = entries[j];
+			//print the account and amount
 			rows.push([`	${account}	`, `${amount === "EMPTY" ? "" : getValue(amount)}`]);
 		}
 		rows.push([""]);
 	}
+	//convert the rows array into a readable table
 	var table = require("text-table");
 	var t = table(rows, { align: ["l", "l"] });
 	console.log(t);
 }
 
-//This function reads everyfile line by line, saves each transactions into an object and puts them into an array
+//This function reads the --file line by line, saves each transactions into an object and puts them into an array
 function getTransactions(file) {
-	getPrices();
+	getPrices(); //populates the prices map by reading the prices_db file
 	const lineByLine = require("n-readlines");
-	let transaction = transactionFactory();
+	let transaction = transactionFactory(); //get a new transaction object
 	const liner = new lineByLine(file);
 
 	let line;
 
+	//read the file line by line
 	while ((line = liner.next())) {
 		//if this line says it includes another file it will loop through that file and come back to the next line
 		let currentLine = line.toString("ascii");
@@ -248,6 +274,7 @@ function getTransactions(file) {
 			}
 		}
 	}
+	//if at the end of the file there is a file left, push it into the array
 	if (transaction.date) {
 		transactions.push(transaction);
 		transaction = transactionFactory();
@@ -255,6 +282,7 @@ function getTransactions(file) {
 	return transactions;
 }
 
+//reads the prices_db file and saves every commodity into the prices map
 function getPrices() {
 	const lineByLine = require("n-readlines");
 	const liner = new lineByLine(program.opts().priceDb);
@@ -271,6 +299,7 @@ function getPrices() {
 	}
 }
 
+//checks if a line contains a date
 function hasDate(line) {
 	const dateType = /(\d{4})([\/-])(\d{1,2})\2(\d{1,2})/;
 	return dateType.test(line);
@@ -285,10 +314,12 @@ function transactionFactory() {
 	return transaction;
 }
 
+//returns the amount without the commodity example: $100.00 => 100.00
 function getNumber(str) {
 	return Number(str.match(/[-\d\., ]/g).join(""));
 }
 
+//adds or multiplies two ammounts and can change the commodity
 function updateAmount(amount1, amount2, commodity, operation) {
 	let num1 = getNumber(amount1);
 	let num2 = getNumber(amount2);
@@ -300,6 +331,7 @@ function updateAmount(amount1, amount2, commodity, operation) {
 	return formatAmount(res, amount1, commodity);
 }
 
+//adds a commodity to a number for example 100.00 => $100.00
 function formatAmount(amount, format, commodity) {
 	if (format.endsWith(commodity)) {
 		return `${amount} ${commodity}`;
@@ -311,6 +343,7 @@ function formatAmount(amount, format, commodity) {
 	return commodity + amount;
 }
 
+//sorts transactions by date
 function sortByDate(logs) {
 	logs.sort(function (a, b) {
 		return new Date(a.date) - new Date(b.date);
@@ -318,6 +351,7 @@ function sortByDate(logs) {
 	return logs;
 }
 
+//checks if a string matches the regex in the command line options
 function checkRegex(str) {
 	let arr = program.args;
 	if (arr.length < 2) return true;
@@ -326,6 +360,7 @@ function checkRegex(str) {
 	return matches.length > 0;
 }
 
+//adds up all the entries in the totals map that are of the same commodity
 function sumCommodities(totals) {
 	let commodities = new Map();
 	const iterator = totals[Symbol.iterator]();
@@ -345,6 +380,7 @@ function sumCommodities(totals) {
 	return commodities;
 }
 
+//removes all the entries of every transaction that doesnt fit the regex in the command line options
 function filterLogs(logs) {
 	let transactions = logs;
 	let arr = program.args;
@@ -363,17 +399,20 @@ function filterLogs(logs) {
 	return transactions;
 }
 
+//converts an amount to the default commodity specified in the prices_db file
 function convertCommodity(amount) {
 	let commodity = amount.replace(/[-\d\., ]/g, "").trim();
 	if (prices.get(commodity)) return updateAmount(prices.get(commodity), amount, prices.get("DEFAULT"), "*");
 	return;
 }
 
+//returns the market value if the users asks for it otherwise it just returns the str
 function getValue(str) {
 	if (!program.opts().V) return str;
 	return convertCommodity(str);
 }
 
+//sorts the totals map by amount
 function sortByAmount(totals) {
 	let sorted = new Map(
 		[...totals.entries()].sort((a, b) =>
@@ -383,6 +422,7 @@ function sortByAmount(totals) {
 	return sorted;
 }
 
+//removes every transaction that doesnt fit in with the date limitations specified in the command line options
 function limitLogs(begin, end, logs) {
 	logs = logs.filter((l) => {
 		if (begin) {
